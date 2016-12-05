@@ -7,6 +7,8 @@
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
+## fixed by maiwj
+
 import datetime
 
 from thumbor.handlers import ImageApiHandler
@@ -20,55 +22,65 @@ import tornado.web
 # This handler support GET, PUT and DELETE method to manipulate existing images
 ##
 class ImageResourceHandler(ImageApiHandler):
+    
+    def location_custom(self, back_path):
+        return '/image/%s' % back_path
 
     @gen.coroutine
     def check_resource(self, id):
-        id = id[:self.context.config.MAX_ID_LENGTH]
-        # Check if image exists
-        exists = yield gen.maybe_future(self.context.modules.storage.exists(id))
-
-        if exists:
-            body = yield gen.maybe_future(self.context.modules.storage.get(id))
-            self.set_status(200)
-
-            mime = BaseEngine.get_mimetype(body)
-            if mime:
-                self.set_header('Content-Type', mime)
-
-            max_age = self.context.config.MAX_AGE
-            if max_age:
-                self.set_header('Cache-Control', 'max-age=' + str(max_age) + ',public')
-                self.set_header('Expires', datetime.datetime.utcnow() + datetime.timedelta(seconds=max_age))
-            self.write(body)
-            self.finish()
+        # fixed when UPLOAD_ENABLED = True, can use GET\HEAD /image
+        if self.context.config.UPLOAD_ENABLED :
+            id = id[:self.context.config.MAX_ID_LENGTH]
+            
+            # Check if image exists
+            exists = yield gen.maybe_future(self.context.modules.upload_photo_storage.exists(id))
+    
+            if exists:
+                body = yield gen.maybe_future(self.context.modules.upload_photo_storage.get(id))
+                self.set_status(200)
+                
+                mime = BaseEngine.get_mimetype(body)
+                if mime:
+                    self.set_header('Content-Type', mime)
+    
+                max_age = self.context.config.MAX_AGE
+                if max_age:
+                    self.set_header('Cache-Control', 'max-age=' + str(max_age) + ',public')
+                    self.set_header('Expires', datetime.datetime.utcnow() + datetime.timedelta(seconds=max_age))
+                self.write(body)
+                self.finish()
+            else:
+                self._error(404, 'Image not found at the given URL')
         else:
-            self._error(404, 'Image not found at the given URL')
+            self._error(404, 'Thumbor can`t UPLOAD_ENABLED')
 
     def put(self, id):
         id = id[:self.context.config.MAX_ID_LENGTH]
         # Check if image overwriting is allowed
-        if not self.context.config.UPLOAD_PUT_ALLOWED:
+        if not self.context.config.UPLOAD_ENABLED or not self.context.config.UPLOAD_PUT_ALLOWED:
             self._error(405, 'Unable to modify an uploaded image')
             return
 
         # Check if the image uploaded is valid
         if self.validate(self.request.body):
-            self.write_file(id, self.request.body)
+            back_path = self.write_file(id, self.request.body)
             self.set_status(204)
+            if back_path != id :
+                self.set_header('Location', self.location_custom(back_path))
 
     @tornado.web.asynchronous
     @tornado.gen.coroutine
     def delete(self, id):
         id = id[:self.context.config.MAX_ID_LENGTH]
         # Check if image deleting is allowed
-        if not self.context.config.UPLOAD_DELETE_ALLOWED:
+        if not self.context.config.UPLOAD_ENABLED or not self.context.config.UPLOAD_DELETE_ALLOWED:
             self._error(405, 'Unable to delete an uploaded image')
             return
 
         # Check if image exists
-        exists = yield gen.maybe_future(self.context.modules.storage.exists(id))
+        exists = yield gen.maybe_future(self.context.modules.upload_photo_storage.exists(id))
         if exists:
-            self.context.modules.storage.remove(id)
+            self.context.modules.upload_photo_storage.remove(id)
             self.set_status(204)
         else:
             self._error(404, 'Image not found at the given URL')

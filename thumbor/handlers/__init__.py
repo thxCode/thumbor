@@ -7,6 +7,7 @@
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
+## fixed by maiwj
 
 import sys
 import functools
@@ -672,4 +673,4 @@ class ImageApiHandler(ContextHandler):
 
     def write_file(self, id, body):
         storage = self.context.modules.upload_photo_storage
-        storage.put(id, body)
+        return storage.put(id, body) # storage put method will return result (support some 3rd upload_storage)

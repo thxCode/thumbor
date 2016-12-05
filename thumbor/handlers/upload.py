@@ -7,6 +7,7 @@
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
+## fixed by maiwj
 
 import uuid
 import mimetypes
@@ -54,9 +55,12 @@ class ImageUploadHandler(ImageApiHandler):
 
             # Build image id based on a random uuid (32 characters)
             image_id = str(uuid.uuid4().hex)
-            self.write_file(image_id, body)
+            back_path = self.write_file(image_id, body)
             self.set_status(201)
-            self.set_header('Location', self.location(image_id, filename))
+            if image_id == back_path :
+                self.set_header('Location', self.location(image_id, filename))
+            else:
+                self.set_header('Location', self.location_custom(back_path))
 
     def multipart_form_data(self):
         if 'media' not in self.request.files or not self.request.files['media']:
@@ -65,5 +69,7 @@ class ImageUploadHandler(ImageApiHandler):
             return True
 
     def location(self, image_id, filename):
-        base_uri = self.request.uri
-        return '%s/%s/%s' % (base_uri, image_id, filename)
+        return '/image/%s/%s' % (image_id, filename)
+    
+    def location_custom(self, back_path):
+        return '/image/%s' % back_path
